@@ -5,7 +5,7 @@ Just a simulation right now, since no don't have the robot yet lol.
 ## Run it
 
 ```bash
-cd efs3-simulator
+cd LLI-C
 pip install -r requirements.txt
 python app.py
 ```
