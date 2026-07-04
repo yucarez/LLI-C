@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLI-C / Let's Larp It, Chat - Simulation Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="unit-id">
+      <h1>LLI<span>-C</span></h1>
+      <p class="unit-sub">Let's Larp It, Chat. Tracked patrol robot pairing an Arduino Mega 2560 control core with an EV3-compatible drivetrain. Flags incipient fire signatures before they reach flashover.</p>
+    </div>
+    <div class="status-block">
+      <div class="status-pill" id="statusPill">STANDBY</div>
+      <div class="clock mono" id="clock">T+00:00:00</div>
+    </div>
+  </header>
+
+  <aside>
+    <div class="spec-group">
+      <h3>Platform</h3>
+      <div class="spec-row"><span class="k">Control core</span><span class="v">Arduino Mega 2560</span></div>
+      <div class="spec-row"><span class="k">Co-processor</span><span class="v">ESP32-S3 (telemetry)</span></div>
+      <div class="spec-row"><span class="k">Chassis</span><span class="v">EV3 tracked base</span></div>
+      <div class="spec-row"><span class="k">Drivetrain</span><span class="v">Dual EV3 large motor</span></div>
+      <div class="spec-row"><span class="k">Power</span><span class="v">2200 mAh LiPo, 2S</span></div>
+      <div class="spec-row"><span class="k">Patrol runtime</span><span class="v">~ 40 min</span></div>
+      <p class="chassis-note">The tracked EV3 undercarriage carries the Arduino sensor stack, so the platform can run either as a standalone Arduino build or bolted onto an existing EV3 chassis.</p>
+    </div>
+    <div class="spec-group">
+      <h3>Sensor suite</h3>
+      <div class="spec-row"><span class="k">Thermal array</span><span class="v">MLX90640, 32x24</span></div>
+      <div class="spec-row"><span class="k">Array FOV</span><span class="v">55&deg; x 35&deg;</span></div>
+      <div class="spec-row"><span class="k">Flame IR</span><span class="v">760&ndash;1100 nm</span></div>
+      <div class="spec-row"><span class="k">Gas / smoke</span><span class="v">MQ-2</span></div>
+      <div class="spec-row"><span class="k">Ranging</span><span class="v">4x HC-SR04</span></div>
+      <div class="spec-row"><span class="k">Uplink</span><span class="v">HC-12, 433 MHz</span></div>
+    </div>
+    <div class="spec-group">
+      <h3>Detection envelope</h3>
+      <div class="spec-row"><span class="k">Scenario range</span><span class="v">2&ndash;20 MW peak HRR</span></div>
+      <div class="spec-row"><span class="k">Growth model</span><span class="v">&alpha;&middot;t&sup2;</span></div>
+      <div class="spec-row"><span class="k">Alarm threshold</span><span class="v">{{ "%.1f"|format(alarm_threshold) }} MW</span></div>
+      <p class="chassis-note">Peak heat release rate classes follow the standard slow / medium / fast / ultra-fast t-squared design fires used in fire engineering benchmarking, scaled here to a 2&ndash;20 MW test range. Every number on this console is computed by the Python backend — the page only polls <span class="mono">/api/state</span> and draws it.</p>
+    </div>
+  </aside>
+
+  <section class="heat-panel">
+    <div class="heat-canvas-wrap">
+      <div class="panel-label">
+        <h2>Thermal field</h2>
+        <span class="tag mono">MLX90640</span>
+      </div>
+      <canvas id="heatmap" width="480" height="280"></canvas>
+    </div>
+    <div class="readout-rail">
+      <div class="readout">
+        <span class="label">Array peak temp</span>
+        <span class="value mono" id="rTemp">22.4<small> &deg;C</small></span>
+      </div>
+      <div class="readout">
+        <span class="label">Smoke opacity</span>
+        <span class="value mono" id="rSmoke">0<small> %</small></span>
+      </div>
+      <div class="readout">
+        <span class="label">CO concentration</span>
+        <span class="value mono" id="rCO">0<small> ppm</small></span>
+      </div>
+      <div class="readout">
+        <span class="label">Flame flicker</span>
+        <span class="value mono" id="rFlicker">&mdash;<small> Hz</small></span>
+      </div>
+      <div class="readout">
+        <span class="label">Range to source</span>
+        <span class="value mono" id="rRange">&mdash;<small> m</small></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="radar-panel">
+    <div class="radar-canvas-wrap">
+      <canvas id="radar" width="200" height="200"></canvas>
+      <p class="radar-caption">Directional sweep, reconstructed from IR array bearing + ultrasonic range</p>
+    </div>
+    <div class="scenario-panel">
+      <div class="panel-label" style="margin-bottom:0;">
+        <h2>Run scenario</h2>
+        <span class="tag mono">t&sup2; GROWTH MODEL</span>
+      </div>
+      <div class="scenario-grid">
+        {% for key, r in rates.items() %}
+        <button class="scenario-btn" data-rate="{{ key }}">{{ r.label|capitalize }}<small>&alpha; {{ "%.4f"|format(r.alpha) }} &middot; cap ~{{ "%.0f"|format(r.cap) }} MW</small></button>
+        {% endfor %}
+      </div>
+      <div class="transport-row">
+        <button class="transport-btn run-btn" id="runBtn" disabled>&#9654; Run</button>
+        <button class="transport-btn pause-btn" id="pauseBtn" disabled>&#10074;&#10074; Pause</button>
+      </div>
+      <button class="reset-btn" id="resetBtn">Clear scenario</button>
+    </div>
+  </section>
+
+  <section class="hrr-panel">
+    <div class="hrr-chart-wrap">
+      <div class="panel-label">
+        <h2>Heat release rate</h2>
+        <span class="tag mono">FULL TRACE &middot; SCROLL TO REVIEW</span>
+      </div>
+      <div class="hrr-scroll" id="hrrScroll">
+        <canvas id="hrrchart" width="760" height="150"></canvas>
+      </div>
+    </div>
+    <div class="gauge-wrap">
+      <span class="gauge-label">Current HRR</span>
+      <div class="gauge-value" id="gaugeValue">0.0<span>MW</span></div>
+      <span class="gauge-label" id="phaseLabel">Phase: standby</span>
+      <p class="gauge-sub">Simulated value only. No thermal load, no combustion, no physical sensor input.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="log-head">
+      <h2>Event log</h2>
+      <span class="tag mono">SIMULATED TELEMETRY</span>
+    </div>
+    <div id="log"></div>
+  </footer>
+
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
