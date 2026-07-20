@@ -1,6 +1,6 @@
 # LLI-C Software
 
-Just a simulation right now, since no don't have the robot yet lol.
+Just a simulation right now, since we don't have the robot yet lol.
 
 ## Run it
 
